@@ -1,6 +1,6 @@
 ﻿<#
 	.SYNOPSIS
-		Script that will use robocopy to keep a source and destination folder in sync and email results base via SMTP.
+		A brief description of the Invoke-RobocopyEmailMain_ps1 file.
 	
 	.DESCRIPTION
 		A description of the file.
