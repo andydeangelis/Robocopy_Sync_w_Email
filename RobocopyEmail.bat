@@ -1,0 +1,1 @@
+powershell.exe "& 'C:\Scripts\RobocopyTest\RobocopyEmailMain.ps1' -SendEmail -smtpServer 193.125.127.5 -smtpFrom 'RAS IT Support <donotreply@pwsupport.rackspace.com>' -smtpTo andy.deangelis@rackspace.com -LogFilePath 'C:\Scripts\RobocopyTest\Reports' -SourcePath 'C:\temp\robocopy\src' -DestinationPath 'C:\temp\robocopy\dst' -NumRetries 5 -AnonymousSMTP -smtpTCPPort 25
