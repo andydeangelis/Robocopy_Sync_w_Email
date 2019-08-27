@@ -241,12 +241,16 @@ $EmailBody = "Robocopy status attached."
 
 if (Get-Item "$LogFilePath\RobocopyCompressedReports" -ErrorAction SilentlyContinue)
 {
-	Compress-Archive -LiteralPath $logFileFullPath -CompressionLevel Optimal -DestinationPath "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+	#Compress-Archive -LiteralPath $logFileFullPath -CompressionLevel Optimal -DestinationPath "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+	
+	.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
 }
 else
 {
 	New-Item -Path $LogFilePath -Name "RobocopyCompressedReports" -ItemType Directory
-	Compress-Archive -LiteralPath $logFileFullPath -CompressionLevel Optimal -DestinationPath "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+	#Compress-Archive -LiteralPath $logFileFullPath -CompressionLevel Optimal -DestinationPath "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+	
+	.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
 }
 
 # Now, send an email if specified.
