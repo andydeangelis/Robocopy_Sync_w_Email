@@ -83,14 +83,22 @@ param
 	[Parameter(Mandatory = $false)]
 	[int]$smtpTCPPort = 25
 )
+Start-Transcript -Path "$PSScriptRoot\transcript.log"
 
 $datetime = get-date -f MM-dd-yyyy_hh.mm.ss
-$logFileFullPath = "$LogFilePath\RobocopySyncLog_$datetime.log"
+$logFileFullPath = "$LogFilePath\$datetime\RobocopySyncLog_$datetime.log"
 $textEncoding = [System.Text.Encoding]::UTF8
 
 if (-not (Get-Item $LogFilePath -ErrorAction SilentlyContinue))
 {
 	New-Item $LogFilePath -ItemType Directory
+    Set-Location -Path $LogFilePath
+    New-Item "$datetime" -ItemType Directory
+}
+else
+{
+    Set-Location -Path $LogFilePath
+    New-Item "$datetime" -ItemType Directory
 }
 
 if (-not $NumRetries) { $NumRetries = 5 }
@@ -243,14 +251,26 @@ if (Get-Item "$LogFilePath\RobocopyCompressedReports" -ErrorAction SilentlyConti
 {
 	#Compress-Archive -LiteralPath $logFileFullPath -CompressionLevel Optimal -DestinationPath "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
 	
-	.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
+	#.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
+
+    $source = "$PSScriptRoot\Reports\$datetime"
+    $archive = "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+
+    Add-Type -assembly "system.io.compression.filesystem"
+    [io.compression.zipfile]::CreateFromDirectory($source, $archive)
 }
 else
 {
 	New-Item -Path $LogFilePath -Name "RobocopyCompressedReports" -ItemType Directory
 	#Compress-Archive -LiteralPath $logFileFullPath -CompressionLevel Optimal -DestinationPath "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
 	
-	.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
+	#.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
+
+    $source = "$PSScriptRoot\Reports\$datetime"
+    $archive = "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+
+    Add-Type -assembly "system.io.compression.filesystem"
+    [io.compression.zipfile]::CreateFromDirectory($source, $archive)
 }
 
 # Now, send an email if specified.
@@ -315,4 +335,7 @@ if ($SendEmail)
 	}
 }
 
-Remove-Item $logFileFullPath -Force -Confirm:$false
+#Remove-Item $logFileFullPath -Force -Confirm:$false
+Remove-Item "$PSScriptRoot\Reports\$datetime" -Force -Recurse -Confirm:$false
+
+Stop-Transcript
