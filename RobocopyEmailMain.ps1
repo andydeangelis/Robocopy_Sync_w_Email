@@ -83,9 +83,9 @@ param
 	[Parameter(Mandatory = $false)]
 	[int]$smtpTCPPort = 25
 )
-Start-Transcript -Path "$PSScriptRoot\transcript.log"
-
 $datetime = get-date -f MM-dd-yyyy_hh.mm.ss
+Start-Transcript -Path "$PSScriptRoot\transcript_$datetime.log"
+
 $logFileFullPath = "$LogFilePath\$datetime\RobocopySyncLog_$datetime.log"
 $textEncoding = [System.Text.Encoding]::UTF8
 
