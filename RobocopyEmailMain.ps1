@@ -50,6 +50,9 @@
 	.PARAMETER LogFile
 		String - The path to store the log files from the robocopy job.
 	
+	.PARAMETER EventSource
+		String - The source name for the event log entry.
+	
 	.NOTES
 		===========================================================================
 		Created with: 	SAPIEN Technologies, Inc., PowerShell Studio 2018 v5.5.150
@@ -81,25 +84,16 @@ param
 	[switch]$UseSSL,
 	[switch]$AnonymousSMTP,
 	[Parameter(Mandatory = $false)]
-	[int]$smtpTCPPort = 25
+	[int]$smtpTCPPort = 25,
+	[Parameter(Mandatory = $false)]
+	[string]$EventSource = "RobocopyEmailMain"
 )
 $datetime = get-date -f MM-dd-yyyy_hh.mm.ss
-Start-Transcript -Path "$PSScriptRoot\transcript_$datetime.log"
 
 $logFileFullPath = "$LogFilePath\$datetime\RobocopySyncLog_$datetime.log"
 $textEncoding = [System.Text.Encoding]::UTF8
 
-if (-not (Get-Item $LogFilePath -ErrorAction SilentlyContinue))
-{
-	New-Item $LogFilePath -ItemType Directory
-    Set-Location -Path $LogFilePath
-    New-Item "$datetime" -ItemType Directory
-}
-else
-{
-    Set-Location -Path $LogFilePath
-    New-Item "$datetime" -ItemType Directory
-}
+New-Item -ItemType Directory -Path "$LogFilePath\$datetime" -Force
 
 if (-not $NumRetries) { $NumRetries = 5 }
 
@@ -107,20 +101,21 @@ if (-not $NumRetries) { $NumRetries = 5 }
 
 if (-not $NumThreads)
 {
-	$processors = get-wmiobject -computername localhost Win32_ComputerSystem
-	$NumThreads = 0
-	try
-	{
-		$NumThreads = @($processors).NumberOfLogicalProcessors
-	}
-	catch
-	{
-		$NumThreads = @($processors).NumberOfProcessors
-	}
+	$NumThreads = [Environment]::ProcessorCount
+}
+
+function Get-RobocopyFailedFiles {
+    param([string]$LogPath)
+
+    if (-not (Test-Path $LogPath)) { return @() }
+
+    Get-Content -Path $LogPath -ErrorAction SilentlyContinue |
+        Where-Object { $_ -match 'ERROR' -or $_ -match '(?i)\bFAILED\b' }
 }
 
 # Change robocopy options as needed. ( http://ss64.com/nt/robocopy.html )
-robocopy $SourcePath $DestinationPath /MIR /FFT /R:$NumRetries /MT:$NumThreads /LOG:$logFileFullPath  /XA:S /XD *RECYCLE.BIN*
+#robocopy $SourcePath $DestinationPath /MIR /FFT /R:$NumRetries /MT:$NumThreads /LOG:$logFileFullPath  /XA:S /XD *RECYCLE.BIN*
+robocopy $SourcePath $DestinationPath /MIR /FFT /R:$NumRetries /MT:$NumThreads /NP /LOG:$logFileFullPath /XA:S /XD *RECYCLE.BIN*
 
 # DO NOT INSERT ANY CODE BETWEEN THE RBOCOPY COMMAND AND THE SWITCH DEFINITION.
 
@@ -244,6 +239,65 @@ Switch ($LASTEXITCODE)
 	}
 }
 
+if ($backupState -eq "ERROR" -or $backupState -eq "SUCCESSFULL")
+{
+    try
+    {
+        if (-not [System.Diagnostics.EventLog]::SourceExists($EventSource))
+        {
+            New-EventLog -LogName Application -Source $EventSource
+        }
+
+        if ($backupState -eq "ERROR")
+        {
+            $failedFileEntries = Get-RobocopyFailedFiles -LogPath $logFileFullPath
+            if (-not $failedFileEntries -or $failedFileEntries.Count -eq 0)
+            {
+                $failedFileEntries = @("No specific failed file entries were found in the robocopy log.")
+            }
+
+            $eventMessage = @(
+                "Robocopy failed."
+                "Source: $SourcePath"
+                "Destination: $DestinationPath"
+                "Exit code: $exit_code"
+                "Reason: $exit_reason"
+                ""
+                "Failed file log entries:"
+                $failedFileEntries
+            ) -join "`r`n"
+
+            $entryType = 'Error'
+            $eventId = 1001
+        }
+        else
+        {
+            $eventMessage = @(
+                "Robocopy completed successfully."
+                "Source: $SourcePath"
+                "Destination: $DestinationPath"
+                "Exit code: $exit_code"
+                "Reason: $exit_reason"
+                "Log file: $logFileFullPath"
+            ) -join "`r`n"
+
+            $entryType = 'Information'
+            $eventId = 1002
+        }
+
+        if ($eventMessage.Length -gt 30000)
+        {
+            $eventMessage = $eventMessage.Substring(0,30000) + "`r`n...[truncated]"
+        }
+
+        Write-EventLog -LogName Application -Source $EventSource -EntryType $entryType -EventId $eventId -Message $eventMessage
+    }
+    catch
+    {
+        Write-Warning "Unable to write to Application event log: $($_.Exception.Message)"
+    }
+}
+
 $EmailSubject = "Robocopy Status: " + "[" + $backupState + "]; " + $exit_reason + ";EC: " + $exit_code
 $EmailBody = "Robocopy status attached."
 
@@ -337,5 +391,3 @@ if ($SendEmail)
 
 #Remove-Item $logFileFullPath -Force -Confirm:$false
 Remove-Item "$PSScriptRoot\Reports\$datetime" -Force -Recurse -Confirm:$false
-
-Stop-Transcript
