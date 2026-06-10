@@ -307,21 +307,21 @@ if (Get-Item "$LogFilePath\RobocopyCompressedReports" -ErrorAction SilentlyConti
 	
 	#.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
 
-    $source = "$PSScriptRoot\Reports\$datetime"
-    $archive = "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+    $source = "$LogFilePath\Reports\$datetime"
+    $archive = "$LogFilePath\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
 
     Add-Type -assembly "system.io.compression.filesystem"
     [io.compression.zipfile]::CreateFromDirectory($source, $archive)
 }
 else
 {
-	New-Item -Path $LogFilePath -Name "RobocopyCompressedReports" -ItemType Directory
+	New-Item -Path "$LogFilePath\Reports" -Name "RobocopyCompressedReports" -ItemType Directory -Force
 	#Compress-Archive -LiteralPath $logFileFullPath -CompressionLevel Optimal -DestinationPath "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
 	
 	#.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
 
-    $source = "$PSScriptRoot\Reports\$datetime"
-    $archive = "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+    $source = "$LogFilePath\Reports\$datetime"
+    $archive = "$LogFilePath\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
 
     Add-Type -assembly "system.io.compression.filesystem"
     [io.compression.zipfile]::CreateFromDirectory($source, $archive)
@@ -390,4 +390,4 @@ if ($SendEmail)
 }
 
 #Remove-Item $logFileFullPath -Force -Confirm:$false
-Remove-Item "$PSScriptRoot\Reports\$datetime" -Force -Recurse -Confirm:$false
+Remove-Item "$LogFilePath\Reports\$datetime" -Force -Recurse -Confirm:$false
