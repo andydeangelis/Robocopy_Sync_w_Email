@@ -48,10 +48,10 @@
 		Int - The TCP port to use when connecting to the SMTP server. Defaults to TCP port 25.
 	
 	.PARAMETER KeepDays
-	Int - Number of days to retain archive zip files in the RobocopyCompressedReports folder.
+	Int - Number of days to retain archive zip files in the RobocopyCompressedReports folder. Defaults to 30.
 
 	.PARAMETER EventSource
-		String - The source name for the event log entry.
+	String - The source name for the event log entry. If not provided, a dynamic source is generated from source and destination folder names.
 	
 	.NOTES
 		===========================================================================
@@ -86,11 +86,24 @@ param
 	[Parameter(Mandatory = $false)]
 	[int]$smtpTCPPort = 25,
 	[Parameter(Mandatory = $false)]
-	[string]$EventSource = "RobocopyMain",
+	[string]$EventSource = "",
 	[Parameter(Mandatory = $false)]
 	[int]$KeepDays = 30
 )
 $datetime = get-date -f MM-dd-yyyy_hh.mm.ss
+
+# Generate dynamic EventSource if not provided
+if ([string]::IsNullOrWhiteSpace($EventSource))
+{
+    $srcFolder = Split-Path -Leaf -Path $SourcePath
+    $dstFolder = Split-Path -Leaf -Path $DestinationPath
+    $EventSource = "RobocopyMain-$srcFolder-$dstFolder"
+    # Ensure event source is not too long (max 256 chars) and remove invalid characters
+    $EventSource = $EventSource -replace '[^a-zA-Z0-9_\-\.]', '_'
+    if ($EventSource.Length -gt 256) {
+        $EventSource = $EventSource.Substring(0, 256)
+    }
+}
 
 $logFileFullPath = "$LogFilePath\$datetime\RobocopySyncLog_$datetime.log"
 $textEncoding = [System.Text.Encoding]::UTF8
