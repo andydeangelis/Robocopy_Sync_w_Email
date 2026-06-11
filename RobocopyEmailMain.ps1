@@ -47,9 +47,9 @@
 	.PARAMETER smtpTCPPort
 		Int - The TCP port to use when connecting to the SMTP server. Defaults to TCP port 25.
 	
-	.PARAMETER LogFile
-		String - The path to store the log files from the robocopy job.
-	
+	.PARAMETER KeepDays
+	Int - Number of days to retain archive zip files in the RobocopyCompressedReports folder.
+
 	.PARAMETER EventSource
 		String - The source name for the event log entry.
 	
@@ -86,7 +86,9 @@ param
 	[Parameter(Mandatory = $false)]
 	[int]$smtpTCPPort = 25,
 	[Parameter(Mandatory = $false)]
-	[string]$EventSource = "RobocopyEmailMain"
+	[string]$EventSource = "RobocopyMain",
+	[Parameter(Mandatory = $false)]
+	[int]$KeepDays = 30
 )
 $datetime = get-date -f MM-dd-yyyy_hh.mm.ss
 
@@ -185,42 +187,36 @@ Switch ($LASTEXITCODE)
 	{
 		$exit_code = "6"
 		$exit_reason = "Additional files and mismatched files exist. No files were copied and no failures were encountered. This means that the files already exist in the destination directory."
-		$IncludeAdmin = $False
 		$backupState = "ERROR"
 	}
 	5
 	{
 		$exit_code = "5"
 		$exit_reason = "Some files were copied. Some files were mismatched. No failure was encountered."
-		$IncludeAdmin = $False
 		$backupState = "ERROR"
 	}
 	4
 	{
 		$exit_code = "4"
 		$exit_reason = "MISMATCHED files or directories were detected.  Examine the log file for more information"
-		$IncludeAdmin = $False
 		$backupState = "ERROR"
 	}
 	3
 	{
 		$exit_code = "3"
 		$exit_reason = "Some files were copied. Additional files were present. No failure was encountered."
-		$IncludeAdmin = $False
 		$backupState = "SUCCESSFULL"
 	}
 	2
 	{
 		$exit_code = "2"
 		$exit_reason = "EXTRA FILES or directories were detected.  Examine the log file for more information"
-		$IncludeAdmin = $False
 		$backupState = "SUCCESSFULL"
 	}
 	1
 	{
 		$exit_code = "1"
 		$exit_reason = "One of more files were copied SUCCESSFULLY"
-		$IncludeAdmin = $False
 		$backupState = "SUCCESSFULL"
 	}
 	0
@@ -229,13 +225,11 @@ Switch ($LASTEXITCODE)
 		$exit_reason = "NO CHANGE occurred and no files were copied"
 		$backupState = "SUCCESSFULL"
 		$SendEmail = $False
-		$IncludeAdmin = $False
 	}
 	default
 	{
 		$exit_code = "Unknown ($LASTEXITCODE)"
 		$exit_reason = "Unknown Reason"
-		$IncludeAdmin = $False
 	}
 }
 
@@ -307,25 +301,52 @@ if (Get-Item "$LogFilePath\RobocopyCompressedReports" -ErrorAction SilentlyConti
 	
 	#.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
 
-    $source = "$LogFilePath\Reports\$datetime"
-    $archive = "$LogFilePath\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+    $source = "$LogFilePath\$datetime"
+    $archive = "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
 
     Add-Type -assembly "system.io.compression.filesystem"
     [io.compression.zipfile]::CreateFromDirectory($source, $archive)
 }
 else
 {
-	New-Item -Path "$LogFilePath\Reports" -Name "RobocopyCompressedReports" -ItemType Directory -Force
+	New-Item -Path "$LogFilePath" -Name "RobocopyCompressedReports" -ItemType Directory -Force
 	#Compress-Archive -LiteralPath $logFileFullPath -CompressionLevel Optimal -DestinationPath "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
 	
 	#.\7za.exe a -tzip "$PSScriptRoot\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip" $logFileFullPath
 
-    $source = "$LogFilePath\Reports\$datetime"
-    $archive = "$LogFilePath\Reports\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
+    $source = "$LogFilePath\$datetime"
+    $archive = "$LogFilePath\RobocopyCompressedReports\RobocopyResults_$datetime.zip"
 
     Add-Type -assembly "system.io.compression.filesystem"
     [io.compression.zipfile]::CreateFromDirectory($source, $archive)
 }
+
+function Remove-OldArchiveFiles {
+    param(
+        [string]$ArchivePath,
+        [int]$KeepDays
+    )
+
+    if (-not (Test-Path $ArchivePath)) {
+        return
+    }
+
+    try {
+        Get-ChildItem -Path $ArchivePath -Filter '*.zip' -File -ErrorAction Stop |
+            Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$KeepDays) } |
+            Remove-Item -Force -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Unable to remove old archive files from '$ArchivePath': $($_.Exception.Message)"
+    }
+}
+
+$compressedReportsPath = Join-Path $LogFilePath 'RobocopyCompressedReports'
+if (-not (Test-Path $compressedReportsPath)) {
+    New-Item -Path $compressedReportsPath -ItemType Directory -Force | Out-Null
+}
+
+Remove-OldArchiveFiles -ArchivePath $compressedReportsPath -KeepDays $KeepDays
 
 # Now, send an email if specified.
 
@@ -390,4 +411,4 @@ if ($SendEmail)
 }
 
 #Remove-Item $logFileFullPath -Force -Confirm:$false
-Remove-Item "$LogFilePath\Reports\$datetime" -Force -Recurse -Confirm:$false
+Remove-Item "$LogFilePath\$datetime" -Force -Recurse -Confirm:$false

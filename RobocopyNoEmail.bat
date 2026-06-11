@@ -1,0 +1,1 @@
+powershell.exe "& '.\RobocopyEmailMain.ps1' -LogFilePath 'C:\Temp\Robocopy\Reports' -SourcePath 'C:\temp\test_files' -DestinationPath 'C:\temp\test_files2' -NumRetries 5 -KeepDays 15 -EventSource 'RobocopyMain'
